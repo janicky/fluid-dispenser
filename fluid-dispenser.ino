@@ -12,8 +12,7 @@
 
 // Tasks names
 #define MEASURE_DISTANCE_TASK 0
-
-boolean state = false;
+#define TOGGLE_BUTTON_TASK 1
 
 // Multitasking millis variables
 unsigned long currentMillis = 0;
@@ -30,28 +29,14 @@ void setup() {
  
 void loop() { 
   currentMillis = millis();
-  if (digitalRead(4) == HIGH) {
-    delay(20);
-    bip();
-    state = !state;
-    while (digitalRead(4) == HIGH);
-    delay(20);
-  }
 
   if (canPerformTask(MEASURE_DISTANCE_TASK, 1000)) {
     performMeasureDistanceTask();
   }
-//  if (distance > 0) {
-//    int level = (int) 10 - round((distance - 20) / 7.0 * 10);
-//    if (level < 0) {
-//      level = 0;
-//    }
-//    Serial.println(level);
-//    setFillingLevel(level);
-//    delay(1000);
-//    Serial.println(distance);
-//  }
-}
+
+  if (canPerformTask(TOGGLE_BUTTON_TASK, 100)) {
+    perfomToggleButtonTask();
+  }
 
 // Alternative for delay() function
 boolean canPerformTask(int index, unsigned long ms) {
@@ -65,12 +50,20 @@ boolean canPerformTask(int index, unsigned long ms) {
 }
 
 // ======================= TASKS =======================
-// #T01: Measure distance task
+// T01: Measure distance task
 void performMeasureDistanceTask() {
   int distance = sonar.ping_cm();
   Serial.println(distance);
 }
-
+// T02: Toggle button task
+void perfomToggleButtonTask() {
+  if (digitalRead(4) == HIGH) {
+    Serial.println("Button pushed");
+//    bip();
+//    state = !state;
+//    while (digitalRead(4) == HIGH);
+  }
+}
 
 void setFillingLevel(int level) {
   for (int i = 0; i < 8; i++) {
