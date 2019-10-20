@@ -3,6 +3,8 @@
 #include <math.h>
 
 // =================== IN/OUT NUMBERS ==================
+// Buttons
+#define TOGGLE_BUTTON_PIN 4 // IN
 #define TRIGGER_PIN  7
 #define ECHO_PIN     6
 #define MAX_DISTANCE 450
@@ -19,6 +21,8 @@
 // Multitasking millis variables
 unsigned long currentMillis = 0;
 unsigned long prevMillis[2];
+// Button states
+boolean toggleButtonPressed = false; 
 
 // ===================== INSTANCES =====================
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
@@ -26,7 +30,7 @@ ShiftRegister74HC595 sr(1, SHIFTREG_SERIAL_DATA_PIN, SHIFTREG_CLOCK_PIN, SHIFTRE
 
 // ======================= SETUP =======================
 void setup() {
-  pinMode(4, INPUT);
+  pinMode(TOGGLE_BUTTON_PIN, INPUT);
   pinMode(5, OUTPUT);
   Serial.begin(9600);
 }
@@ -39,14 +43,15 @@ void loop() {
     performMeasureDistanceTask();
   }
 
-  if (canPerformTask(TOGGLE_BUTTON_TASK, 100)) {
-    if (digitalRead(4) == HIGH && !toggleButtonPressed) {
+  if (canPerformTask(TOGGLE_BUTTON_TASK, 10)) {
+    if (digitalRead(TOGGLE_BUTTON_PIN) == HIGH && !toggleButtonPressed) {
       toggleButtonPressed = true;
-    } else if (digitalRead(4) == LOW && toggleButtonPressed) {
+    } else if (digitalRead(TOGGLE_BUTTON_PIN) == LOW && toggleButtonPressed) {
       perfomToggleButtonTask();
       toggleButtonPressed = false;
     }
   }
+}
 
 // ======================= TASKS =======================
 // ----------------------- T01: Measure distance task
@@ -56,23 +61,23 @@ void performMeasureDistanceTask() {
 }
 
 // ----------------------- T02: Toggle button task
-boolean toggleButtonPressed = false;
 void perfomToggleButtonTask() {
-
+  Serial.println("Button task");
+  bip();
 }
 
 
 // ===================== FUNCTIONS =====================
 // Alternative for delay() function
-  boolean canPerformTask(int index, unsigned long ms) {
+boolean canPerformTask(int index, unsigned long ms) {
 // Check if task will should be performed
-    if (currentMillis - prevMillis[index] >= ms) {
+  if (currentMillis - prevMillis[index] >= ms) {
 // Update last perform time
-      prevMillis[index] = currentMillis;
-      return true;
-    }
-    return false;
+    prevMillis[index] = currentMillis;
+    return true;
   }
+  return false;
+}
 
 void setFillingLevel(int level) {
   for (int i = 0; i < 8; i++) {
