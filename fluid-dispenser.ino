@@ -22,6 +22,7 @@
 
 // =================== CONFIGURATION ===================
 #define CUP_DETECTION_TIME 1000
+#define BUTTONS_DEBOUNCE_TIME 200
 
 // ===================== VARIABLES =====================
 // Multitasking millis variables
@@ -30,6 +31,7 @@ unsigned long prevMillis[2];
 // Button states
 boolean toggleButtonPressed = false;
 boolean actionButtonPressed = false;
+unsigned long buttonDebounceTime = 0;
 // Distance measurement
 int echoMeasurementsCount = 0;
 unsigned long echoMeasurementTime = 0;
@@ -60,14 +62,14 @@ void loop() {
     performMeasureDistanceTask();
   }
 
-  if (digitalRead(TOGGLE_BUTTON_PIN) == HIGH && !toggleButtonPressed) {
+  if (digitalRead(TOGGLE_BUTTON_PIN) == HIGH && !toggleButtonPressed && debounceButton()) {
     toggleButtonPressed = true;
   } else if (digitalRead(TOGGLE_BUTTON_PIN) == LOW && toggleButtonPressed) {
     perfomToggleButtonTask();
     toggleButtonPressed = false;
   }
 
-  if (digitalRead(ACTION_BUTTON_PIN) == HIGH && !actionButtonPressed) {
+  if (digitalRead(ACTION_BUTTON_PIN) == HIGH && !actionButtonPressed && debounceButton()) {
     actionButtonPressed = true;
   } else if (digitalRead(ACTION_BUTTON_PIN) == LOW && actionButtonPressed) {
     perfomActionButtonTask();
@@ -99,9 +101,10 @@ void perfomToggleButtonTask() {
 void perfomActionButtonTask() {
   if (isCupPresent()) {
     Serial.println("OK");
-    playNegative();
+    playBeep(500);
   } else {
     Serial.println("NO CUP");
+    playNegative();
   }
 }
 
@@ -143,7 +146,7 @@ void handleNegativeSound() {
   } else {
     if (negativeSoundStage == 0) {
       if (!negativeSoundStageSetted) {
-        analogWrite(BUZZER_PIN, 255);
+        analogWrite(BUZZER_PIN, 220);
         negativeSoundStageSetted = true;
       }
       if (currentMillis - negativeSoundStageTime >= 200) {
@@ -153,10 +156,10 @@ void handleNegativeSound() {
       }
     } else if (negativeSoundStage == 1) {
       if (!negativeSoundStageSetted) {
-        analogWrite(BUZZER_PIN, 200);
+        analogWrite(BUZZER_PIN, 185);
         negativeSoundStageSetted = true;
       }
-      if (currentMillis - negativeSoundStageTime >= 200) {
+      if (currentMillis - negativeSoundStageTime >= 500) {
         negativeSoundStageTime = currentMillis;
         negativeSoundStage = 2;
         negativeSoundStageSetted = false;
@@ -189,6 +192,11 @@ boolean canPerformTask(int index, unsigned long ms) {
 // Check if ultrasound sensor is covered
 boolean isCupPresent() {
   return echoMeasurementsCount == 0 && currentMillis - echoMeasurementTime >= CUP_DETECTION_TIME;
+}
+
+// Debounce button function
+boolean debounceButton() {
+  return currentMillis - buttonDebounceTime > BUTTONS_DEBOUNCE_TIME;
 }
 
 // Play beep sound
