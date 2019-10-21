@@ -6,6 +6,7 @@
 // Buttons
 #define TOGGLE_BUTTON_PIN 4 // IN
 #define ACTION_BUTTON_PIN 3 // IN
+#define BUZZER_PIN 5 // OUT
 #define TRIGGER_PIN  7
 #define ECHO_PIN     6
 #define MAX_DISTANCE 450
@@ -34,6 +35,10 @@ int echoMeasurementsCount = 0;
 unsigned long echoMeasurementTime = 0;
 // Cup state
 boolean isCup = false;
+// Sound variables
+boolean playingBeep = false;
+unsigned int beepTime = 0;
+boolean playingNegative = false;
 
 // ===================== INSTANCES =====================
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
@@ -68,6 +73,9 @@ void loop() {
     perfomActionButtonTask();
     actionButtonPressed = false;
   }
+
+// Handle sounds
+  handleSoundsTask();
 }
 
 // ======================= TASKS =======================
@@ -84,15 +92,87 @@ void performMeasureDistanceTask() {
 // ----------------------- T01: Toggle button task
 void perfomToggleButtonTask() {
   Serial.println("Toggle button task");
-  bip();
+  playBeep(200);
 }
 
 // ----------------------- T02: Action button task
 void perfomActionButtonTask() {
-  Serial.println("Action button task");
-  bip();
+  if (isCupPresent()) {
+    Serial.println("OK");
+    playNegative();
+  } else {
+    Serial.println("NO CUP");
+  }
 }
 
+// ----------------------- T05: Handle sounds task
+void handleSoundsTask() {
+  if (playingBeep) {
+    handleBeepSound();  
+  } else if (playingNegative) {
+    handleNegativeSound();  
+  }
+}
+
+// ===================== SOUNDS ========================
+// ----------------------- S00: Beep
+boolean beepSoundActive = false;
+unsigned long beepSoundStartTime = 0;
+void handleBeepSound() {
+  if (!beepSoundActive) {
+    beepSoundActive = true;
+    beepSoundStartTime = currentMillis;
+  } else {
+    if (currentMillis - beepSoundStartTime >= beepTime) {
+      beepSoundActive = false;
+      playingBeep = false;
+    }
+  }
+  digitalWrite(BUZZER_PIN, beepSoundActive);
+}
+
+// ----------------------- S01: Negative
+boolean negativeSoundActive = false;
+unsigned long negativeSoundStageTime = 0;
+unsigned int negativeSoundStage = 0;
+boolean negativeSoundStageSetted = false;
+void handleNegativeSound() {
+  if (!negativeSoundActive) {
+    negativeSoundActive = true;
+    negativeSoundStageTime = currentMillis;
+  } else {
+    if (negativeSoundStage == 0) {
+      if (!negativeSoundStageSetted) {
+        analogWrite(BUZZER_PIN, 255);
+        negativeSoundStageSetted = true;
+      }
+      if (currentMillis - negativeSoundStageTime >= 200) {
+        negativeSoundStageTime = currentMillis;
+        negativeSoundStage = 1;
+        negativeSoundStageSetted = false;
+      }
+    } else if (negativeSoundStage == 1) {
+      if (!negativeSoundStageSetted) {
+        analogWrite(BUZZER_PIN, 200);
+        negativeSoundStageSetted = true;
+      }
+      if (currentMillis - negativeSoundStageTime >= 200) {
+        negativeSoundStageTime = currentMillis;
+        negativeSoundStage = 2;
+        negativeSoundStageSetted = false;
+      }
+    } else {
+      if (!negativeSoundStageSetted) {
+        analogWrite(BUZZER_PIN, 0);
+        negativeSoundActive = false;
+        negativeSoundStage = 0;
+        negativeSoundStageSetted = false;
+//      Stop playing
+        playingNegative = false;
+      }
+    }
+  }
+}
 
 // ===================== FUNCTIONS =====================
 // Alternative for delay() function
@@ -111,6 +191,20 @@ boolean isCupPresent() {
   return echoMeasurementsCount == 0 && currentMillis - echoMeasurementTime >= CUP_DETECTION_TIME;
 }
 
+// Play beep sound
+void playBeep(unsigned int ms) {
+  if (!playingBeep) {
+    playingBeep = true;
+    beepTime = ms;
+  }
+}
+// Play negative sound
+void playNegative() {
+  if (!playingNegative) {
+    playingNegative = true;
+  }
+}
+
 void setFillingLevel(int level) {
   for (int i = 0; i < 8; i++) {
     sr.set(i, (level > i));
@@ -124,10 +218,9 @@ void bip() {
 }
 
 void danger() {
-  for (int i = 0; i < 10; i++) {
-    digitalWrite(5, HIGH);
-    delay(100);
-    digitalWrite(5, LOW);
-    delay(50);
-  }
+  analogWrite(BUZZER_PIN, 255);
+  delay(200);
+  analogWrite(BUZZER_PIN, 200);
+  delay(500);
+  analogWrite(BUZZER_PIN, 0);
 }
