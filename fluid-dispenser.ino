@@ -5,6 +5,7 @@
 // =================== IN/OUT NUMBERS ==================
 // Buttons
 #define TOGGLE_BUTTON_PIN 4 // IN
+#define ACTION_BUTTON_PIN 3 // IN
 #define TRIGGER_PIN  7
 #define ECHO_PIN     6
 #define MAX_DISTANCE 450
@@ -16,13 +17,23 @@
 // Tasks names
 #define MEASURE_DISTANCE_TASK 0
 #define TOGGLE_BUTTON_TASK 1
+#define ACTION_BUTTON_TASK 2
+
+// =================== CONFIGURATION ===================
+#define CUP_DETECTION_TIME 1000
 
 // ===================== VARIABLES =====================
 // Multitasking millis variables
 unsigned long currentMillis = 0;
 unsigned long prevMillis[2];
 // Button states
-boolean toggleButtonPressed = false; 
+boolean toggleButtonPressed = false;
+boolean actionButtonPressed = false;
+// Distance measurement
+int echoMeasurementsCount = 0;
+unsigned long echoMeasurementTime = 0;
+// Cup state
+boolean isCup = false;
 
 // ===================== INSTANCES =====================
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
@@ -31,6 +42,7 @@ ShiftRegister74HC595 sr(1, SHIFTREG_SERIAL_DATA_PIN, SHIFTREG_CLOCK_PIN, SHIFTRE
 // ======================= SETUP =======================
 void setup() {
   pinMode(TOGGLE_BUTTON_PIN, INPUT);
+  pinMode(ACTION_BUTTON_PIN, INPUT);
   pinMode(5, OUTPUT);
   Serial.begin(9600);
 }
@@ -39,30 +51,45 @@ void setup() {
 void loop() { 
   currentMillis = millis();
 
-  if (canPerformTask(MEASURE_DISTANCE_TASK, 1000)) {
+  if (canPerformTask(MEASURE_DISTANCE_TASK, 100)) {
     performMeasureDistanceTask();
   }
 
-  if (canPerformTask(TOGGLE_BUTTON_TASK, 10)) {
-    if (digitalRead(TOGGLE_BUTTON_PIN) == HIGH && !toggleButtonPressed) {
-      toggleButtonPressed = true;
-    } else if (digitalRead(TOGGLE_BUTTON_PIN) == LOW && toggleButtonPressed) {
-      perfomToggleButtonTask();
-      toggleButtonPressed = false;
-    }
+  if (digitalRead(TOGGLE_BUTTON_PIN) == HIGH && !toggleButtonPressed) {
+    toggleButtonPressed = true;
+  } else if (digitalRead(TOGGLE_BUTTON_PIN) == LOW && toggleButtonPressed) {
+    perfomToggleButtonTask();
+    toggleButtonPressed = false;
+  }
+
+  if (digitalRead(ACTION_BUTTON_PIN) == HIGH && !actionButtonPressed) {
+    actionButtonPressed = true;
+  } else if (digitalRead(ACTION_BUTTON_PIN) == LOW && actionButtonPressed) {
+    perfomActionButtonTask();
+    actionButtonPressed = false;
   }
 }
 
 // ======================= TASKS =======================
-// ----------------------- T01: Measure distance task
+// ----------------------- T00: Measure distance task
 void performMeasureDistanceTask() {
-  int distance = sonar.ping_cm();
-  Serial.println(distance);
+  if (sonar.ping_cm() != NO_ECHO) {
+    echoMeasurementsCount++;
+    echoMeasurementTime = currentMillis;
+  } else {
+    echoMeasurementsCount = 0;
+  }
 }
 
-// ----------------------- T02: Toggle button task
+// ----------------------- T01: Toggle button task
 void perfomToggleButtonTask() {
-  Serial.println("Button task");
+  Serial.println("Toggle button task");
+  bip();
+}
+
+// ----------------------- T02: Action button task
+void perfomActionButtonTask() {
+  Serial.println("Action button task");
   bip();
 }
 
@@ -77,6 +104,11 @@ boolean canPerformTask(int index, unsigned long ms) {
     return true;
   }
   return false;
+}
+
+// Check if ultrasound sensor is covered
+boolean isCupPresent() {
+  return echoMeasurementsCount == 0 && currentMillis - echoMeasurementTime >= CUP_DETECTION_TIME;
 }
 
 void setFillingLevel(int level) {
