@@ -156,12 +156,22 @@ void handleNegativeSound() {
       }
     } else if (negativeSoundStage == 1) {
       if (!negativeSoundStageSetted) {
+        analogWrite(BUZZER_PIN, 0);
+        negativeSoundStageSetted = true;
+      }
+      if (currentMillis - negativeSoundStageTime >= 50) {
+        negativeSoundStageTime = currentMillis;
+        negativeSoundStage = 2;
+        negativeSoundStageSetted = false;
+      }
+    } else if (negativeSoundStage == 2) {
+      if (!negativeSoundStageSetted) {
         analogWrite(BUZZER_PIN, 185);
         negativeSoundStageSetted = true;
       }
       if (currentMillis - negativeSoundStageTime >= 500) {
         negativeSoundStageTime = currentMillis;
-        negativeSoundStage = 2;
+        negativeSoundStage = 3;
         negativeSoundStageSetted = false;
       }
     } else {
