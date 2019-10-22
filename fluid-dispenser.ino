@@ -27,6 +27,7 @@
 #define CUP_DETECTION_TIME 1000
 #define BUTTONS_DEBOUNCE_TIME 200
 #define TOGGLE_EXPIRATION_TIME 4000
+#define DEFAULT_BUZZER_TONE 255
 const int VOLUMES[] = { 40, 100, 150, 200 };
 
 // ===================== VARIABLES =====================
@@ -45,6 +46,7 @@ boolean isCup = false;
 // Sound variables
 boolean playingBeep = false;
 unsigned int beepTime = 0;
+unsigned int beepTone = 0;
 boolean playingNegative = false;
 // Toggle button configuration
 boolean toggleActivated = false;
@@ -135,6 +137,7 @@ void perfomActionButtonTask() {
 void performExpireToggleTask() {
   toggleActivated = false;
   displayHomeScreen();
+  beepTone = 100;
   playBeep(100);
 }
 
@@ -159,9 +162,11 @@ void handleBeepSound() {
     if (currentMillis - beepSoundStartTime >= beepTime) {
       beepSoundActive = false;
       playingBeep = false;
+      beepTone = DEFAULT_BUZZER_TONE;
     }
   }
-  digitalWrite(BUZZER_PIN, beepSoundActive);
+  int buzzerValue = beepSoundActive ? beepTone : 0;
+  analogWrite(BUZZER_PIN, buzzerValue);
 }
 
 // ----------------------- S01: Negative
@@ -217,6 +222,24 @@ void handleNegativeSound() {
   }
 }
 
+// ===================== SCREENS ====================
+// ----------------------- SC00: Home
+void displayHomeScreen() {
+  lcd.clear();
+  lcd.print("TEMP:     36.6C");
+  lcd.setCursor(0, 1);
+  lcd.print("SELECTED: " + volumeText(VOLUMES[toggleStage]));
+}
+
+// ----------------------- SC01: Toggle
+void displayToggleScreen() {
+  lcd.clear();
+  lcd.print("SELECTED: ");
+  lcd.print(volumeText(VOLUMES[toggleStage]));
+  lcd.setCursor(0, 1);
+  lcd.print("pour - press red");
+}
+
 // ===================== FUNCTIONS =====================
 // Alternative for delay() function
 boolean canPerformTask(int index, unsigned long ms) {
@@ -264,18 +287,6 @@ void setFillingLevel(int level) {
   }
 }
 
-// ===================== SCREENS ====================
-// ----------------------- SC00: Home
-void displayHomeScreen() {
-  lcd.clear();
-  lcd.print("READY");
-}
-
-// ----------------------- SC01: Toggle
-void displayToggleScreen() {
-  lcd.clear();
-  lcd.print("SELECTED: ");
-  lcd.print(String(VOLUMES[toggleStage], 10) + "ml");
-  lcd.setCursor(0, 1);
-  lcd.print("pour - press red");
+String volumeText(int volume) {
+  return String(volume, 10) + "ml";
 }
