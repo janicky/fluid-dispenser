@@ -1,5 +1,7 @@
 #include <NewPing.h>
 #include <ShiftRegister74HC595.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 #include <math.h>
 
 // =================== IN/OUT NUMBERS ==================
@@ -23,6 +25,7 @@
 // =================== CONFIGURATION ===================
 #define CUP_DETECTION_TIME 1000
 #define BUTTONS_DEBOUNCE_TIME 200
+const int VOLUMES[] = { 40, 100, 150, 200 };
 
 // ===================== VARIABLES =====================
 // Multitasking millis variables
@@ -41,16 +44,25 @@ boolean isCup = false;
 boolean playingBeep = false;
 unsigned int beepTime = 0;
 boolean playingNegative = false;
+// Toggle button configuration
+boolean toggleActivated = false;
+unsigned int toggleStage = 0;
+unsigned long lastToggleTime = 0;
 
 // ===================== INSTANCES =====================
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
 ShiftRegister74HC595 sr(1, SHIFTREG_SERIAL_DATA_PIN, SHIFTREG_CLOCK_PIN, SHIFTREG_LATCH_PIN);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // ======================= SETUP =======================
 void setup() {
   pinMode(TOGGLE_BUTTON_PIN, INPUT);
   pinMode(ACTION_BUTTON_PIN, INPUT);
-  pinMode(5, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.print(VOLUMES[0]);
   Serial.begin(9600);
 }
 
@@ -93,8 +105,17 @@ void performMeasureDistanceTask() {
 
 // ----------------------- T01: Toggle button task
 void perfomToggleButtonTask() {
-  Serial.println("Toggle button task");
-  playBeep(200);
+  if (toggleActivated) {
+    toggleStage = (toggleStage + 1) % (sizeof(VOLUMES) / sizeof(int));
+    playBeep(200);
+  }
+
+  lcd.clear();
+  lcd.print("SELECTED: ");
+  lcd.print(String(VOLUMES[toggleStage], 10) + "ml");
+  lcd.setCursor(0, 1);
+  lcd.print("pour - press red");
+  toggleActivated = true;
 }
 
 // ----------------------- T02: Action button task
