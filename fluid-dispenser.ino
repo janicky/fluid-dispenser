@@ -21,16 +21,18 @@
 #define MEASURE_DISTANCE_TASK 0
 #define TOGGLE_BUTTON_TASK 1
 #define ACTION_BUTTON_TASK 2
+#define EXPIRE_TOGGLE_TASK 3
 
 // =================== CONFIGURATION ===================
 #define CUP_DETECTION_TIME 1000
 #define BUTTONS_DEBOUNCE_TIME 200
+#define TOGGLE_EXPIRATION_TIME 4000
 const int VOLUMES[] = { 40, 100, 150, 200 };
 
 // ===================== VARIABLES =====================
 // Multitasking millis variables
 unsigned long currentMillis = 0;
-unsigned long prevMillis[2];
+unsigned long prevMillis[4];
 // Button states
 boolean toggleButtonPressed = false;
 boolean actionButtonPressed = false;
@@ -47,7 +49,6 @@ boolean playingNegative = false;
 // Toggle button configuration
 boolean toggleActivated = false;
 unsigned int toggleStage = 0;
-unsigned long lastToggleTime = 0;
 
 // ===================== INSTANCES =====================
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
@@ -62,7 +63,7 @@ void setup() {
 
   lcd.init();
   lcd.backlight();
-  lcd.print(VOLUMES[0]);
+  displayHomeScreen();
   Serial.begin(9600);
 }
 
@@ -88,6 +89,10 @@ void loop() {
     actionButtonPressed = false;
   }
 
+  if (toggleActivated && canPerformTask(EXPIRE_TOGGLE_TASK, TOGGLE_EXPIRATION_TIME)) {
+    performExpireToggleTask();
+  }
+
 // Handle sounds
   handleSoundsTask();
 }
@@ -110,12 +115,9 @@ void perfomToggleButtonTask() {
     playBeep(200);
   }
 
-  lcd.clear();
-  lcd.print("SELECTED: ");
-  lcd.print(String(VOLUMES[toggleStage], 10) + "ml");
-  lcd.setCursor(0, 1);
-  lcd.print("pour - press red");
+  displayToggleScreen();
   toggleActivated = true;
+  updateTaskTime(EXPIRE_TOGGLE_TASK);
 }
 
 // ----------------------- T02: Action button task
@@ -127,6 +129,13 @@ void perfomActionButtonTask() {
     Serial.println("NO CUP");
     playNegative();
   }
+}
+
+// ----------------------- T03: Expire toggle task
+void performExpireToggleTask() {
+  toggleActivated = false;
+  displayHomeScreen();
+  playBeep(100);
 }
 
 // ----------------------- T05: Handle sounds task
@@ -214,10 +223,15 @@ boolean canPerformTask(int index, unsigned long ms) {
 // Check if task will should be performed
   if (currentMillis - prevMillis[index] >= ms) {
 // Update last perform time
-    prevMillis[index] = currentMillis;
+    updateTaskTime(index);
     return true;
   }
   return false;
+}
+
+// Update prev time
+void updateTaskTime(int index) {
+  prevMillis[index] = currentMillis;
 }
 
 // Check if ultrasound sensor is covered
@@ -250,16 +264,18 @@ void setFillingLevel(int level) {
   }
 }
 
-void bip() {
-  digitalWrite(5, HIGH);
-  delay(50);
-  digitalWrite(5, LOW);
+// ===================== SCREENS ====================
+// ----------------------- SC00: Home
+void displayHomeScreen() {
+  lcd.clear();
+  lcd.print("READY");
 }
 
-void danger() {
-  analogWrite(BUZZER_PIN, 255);
-  delay(200);
-  analogWrite(BUZZER_PIN, 200);
-  delay(500);
-  analogWrite(BUZZER_PIN, 0);
+// ----------------------- SC01: Toggle
+void displayToggleScreen() {
+  lcd.clear();
+  lcd.print("SELECTED: ");
+  lcd.print(String(VOLUMES[toggleStage], 10) + "ml");
+  lcd.setCursor(0, 1);
+  lcd.print("pour - press red");
 }
