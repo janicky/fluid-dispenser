@@ -22,18 +22,20 @@
 #define TOGGLE_BUTTON_TASK 1
 #define ACTION_BUTTON_TASK 2
 #define EXPIRE_TOGGLE_TASK 3
+#define EXPIRE_NOVESSEL_TASK 4
 
 // =================== CONFIGURATION ===================
 #define CUP_DETECTION_TIME 1000
 #define BUTTONS_DEBOUNCE_TIME 200
 #define TOGGLE_EXPIRATION_TIME 4000
+#define NOVESSEL_EXPIRATION_TIME 6000
 #define DEFAULT_BUZZER_TONE 255
 const int VOLUMES[] = { 40, 100, 150, 200 };
 
 // ===================== VARIABLES =====================
 // Multitasking millis variables
 unsigned long currentMillis = 0;
-unsigned long prevMillis[4];
+unsigned long prevMillis[5];
 // Button states
 boolean toggleButtonPressed = false;
 boolean actionButtonPressed = false;
@@ -51,6 +53,8 @@ boolean playingNegative = false;
 // Toggle button configuration
 boolean toggleActivated = false;
 unsigned int toggleStage = 0;
+// Vessel detection
+boolean noVesselActivated = false;
 
 // ===================== INSTANCES =====================
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
@@ -95,6 +99,10 @@ void loop() {
     performExpireToggleTask();
   }
 
+  if (noVesselActivated && canPerformTask(EXPIRE_NOVESSEL_TASK, NOVESSEL_EXPIRATION_TIME)) {
+    performExpireNoVesselTask();
+  }
+
 // Handle sounds
   handleSoundsTask();
 }
@@ -128,7 +136,9 @@ void perfomActionButtonTask() {
     Serial.println("OK");
     playBeep(500);
   } else {
-    Serial.println("NO CUP");
+    displayNoVesselScreen();
+    noVesselActivated = true;
+    updateTaskTime(EXPIRE_NOVESSEL_TASK);
     playNegative();
   }
 }
@@ -136,6 +146,14 @@ void perfomActionButtonTask() {
 // ----------------------- T03: Expire toggle task
 void performExpireToggleTask() {
   toggleActivated = false;
+  displayHomeScreen();
+  beepTone = 100;
+  playBeep(100);
+}
+
+// ----------------------- T04: Expire no vessel task
+void performExpireNoVesselTask() {
+  noVesselActivated = false;
   displayHomeScreen();
   beepTone = 100;
   playBeep(100);
@@ -238,6 +256,16 @@ void displayToggleScreen() {
   lcd.print(volumeText(VOLUMES[toggleStage]));
   lcd.setCursor(0, 1);
   lcd.print("pour - press red");
+}
+
+// ----------------------- SC02: Action
+
+// ----------------------- SC03: No vessel
+void displayNoVesselScreen() {
+  lcd.clear();
+  lcd.print("NO VESSEL DETECT");
+  lcd.setCursor(0, 1);
+  lcd.print("Please try again");
 }
 
 // ===================== FUNCTIONS =====================
