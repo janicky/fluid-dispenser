@@ -11,6 +11,7 @@
 #define BUZZER_PIN 5 // OUT
 #define TRIGGER_PIN  7
 #define ECHO_PIN     6
+#define WEIGHT_SENSOR_PIN A2 // ANALOG IN
 #define MAX_DISTANCE 450
 
 #define SHIFTREG_SERIAL_DATA_PIN 8
@@ -23,6 +24,7 @@
 #define ACTION_BUTTON_TASK 2
 #define EXPIRE_TOGGLE_TASK 3
 #define EXPIRE_NOVESSEL_TASK 4
+#define MEASURE_WEIGHT_TASK 5
 
 // =================== CONFIGURATION ===================
 #define CUP_DETECTION_TIME 1000
@@ -35,7 +37,7 @@ const int VOLUMES[] = { 40, 100, 150, 200 };
 // ===================== VARIABLES =====================
 // Multitasking millis variables
 unsigned long currentMillis = 0;
-unsigned long prevMillis[5];
+unsigned long prevMillis[6];
 // Button states
 boolean toggleButtonPressed = false;
 boolean actionButtonPressed = false;
@@ -48,17 +50,19 @@ boolean isCup = false;
 // Sound variables
 boolean playingBeep = false;
 unsigned int beepTime = 0;
-unsigned int beepTone = 0;
+unsigned int beepTone = 255;
 boolean playingNegative = false;
 // Toggle button configuration
 boolean toggleActivated = false;
 unsigned int toggleStage = 0;
 // Vessel detection
 boolean noVesselActivated = false;
+// Weight measure
+int weight = 0;
 
 // ===================== INSTANCES =====================
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
-ShiftRegister74HC595 sr(1, SHIFTREG_SERIAL_DATA_PIN, SHIFTREG_CLOCK_PIN, SHIFTREG_LATCH_PIN);
+ShiftRegister74HC595 sr(2, SHIFTREG_SERIAL_DATA_PIN, SHIFTREG_CLOCK_PIN, SHIFTREG_LATCH_PIN);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // ======================= SETUP =======================
@@ -66,11 +70,11 @@ void setup() {
   pinMode(TOGGLE_BUTTON_PIN, INPUT);
   pinMode(ACTION_BUTTON_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
+  Serial.begin(9600);
 
   lcd.init();
   lcd.backlight();
   displayHomeScreen();
-  Serial.begin(9600);
 }
 
 // ======================= LOOP ========================
@@ -103,8 +107,14 @@ void loop() {
     performExpireNoVesselTask();
   }
 
+  if (canPerformTask(MEASURE_WEIGHT_TASK, 100)) {
+    performMeasureWeightTask();
+  }
+
 // Handle sounds
   handleSoundsTask();
+
+//  Serial.println(sr.get(1));
 }
 
 // ======================= TASKS =======================
@@ -159,7 +169,17 @@ void performExpireNoVesselTask() {
   playBeep(100);
 }
 
-// ----------------------- T05: Handle sounds task
+// ----------------------- T05: Expire no vessel task
+void performMeasureWeightTask() {
+  weight = analogRead(WEIGHT_SENSOR_PIN);
+  int level = map(weight, 0, 900, 0, 10);
+  Serial.print(weight);
+  Serial.print(" ");
+  Serial.println(level);
+  setFillingLevel(level);
+}
+
+// ----------------------- T06: Handle sounds task
 void handleSoundsTask() {
   if (playingBeep) {
     handleBeepSound();  
@@ -272,7 +292,7 @@ void displayNoVesselScreen() {
 // Alternative for delay() function
 boolean canPerformTask(int index, unsigned long ms) {
 // Check if task will should be performed
-  if (currentMillis - prevMillis[index] >= ms) {
+  if (abs(currentMillis - prevMillis[index]) >= ms) {
 // Update last perform time
     updateTaskTime(index);
     return true;
@@ -310,7 +330,7 @@ void playNegative() {
 }
 
 void setFillingLevel(int level) {
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 10; i++) {
     sr.set(i, (level > i));
   }
 }
