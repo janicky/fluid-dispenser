@@ -72,6 +72,8 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   Serial.begin(9600);
 
+  pinMode(11, OUTPUT);
+
   lcd.init();
   lcd.backlight();
   displayHomeScreen();
@@ -111,6 +113,8 @@ void loop() {
     performMeasureWeightTask();
   }
 
+  analogWrite(11, map(weight, 150, 800, 0, 255));
+
 // Handle sounds
   handleSoundsTask();
 }
@@ -118,7 +122,10 @@ void loop() {
 // ======================= TASKS =======================
 // ----------------------- T00: Measure distance task
 void performMeasureDistanceTask() {
-  if (sonar.ping_cm() != NO_ECHO) {
+  int distance = sonar.ping_cm();
+  if (distance > 30) return;
+  
+  if (distance != NO_ECHO) {
     echoMeasurementsCount++;
     echoMeasurementTime = currentMillis;
   } else {
