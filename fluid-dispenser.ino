@@ -113,8 +113,6 @@ void loop() {
 
 // Handle sounds
   handleSoundsTask();
-
-//  Serial.println(sr.get(1));
 }
 
 // ======================= TASKS =======================
@@ -172,10 +170,7 @@ void performExpireNoVesselTask() {
 // ----------------------- T05: Expire no vessel task
 void performMeasureWeightTask() {
   weight = analogRead(WEIGHT_SENSOR_PIN);
-  int level = map(weight, 0, 900, 0, 10);
-  Serial.print(weight);
-  Serial.print(" ");
-  Serial.println(level);
+  int level = map(weight, 150, 800, 0, 10);
   setFillingLevel(level);
 }
 
