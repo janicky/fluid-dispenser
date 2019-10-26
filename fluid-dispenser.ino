@@ -1,7 +1,7 @@
 #include <NewPing.h>
 #include <ShiftRegister74HC595.h>
-#include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <DS18B20.h>
 #include <math.h>
 
 // =================== IN/OUT NUMBERS ==================
@@ -12,6 +12,7 @@
 #define TRIGGER_PIN  7
 #define ECHO_PIN     6
 #define WEIGHT_SENSOR_PIN A2 // ANALOG IN
+#define TEMPERATURE_SENSOR_PIN 2 // IN
 #define MAX_DISTANCE 450
 
 #define SHIFTREG_SERIAL_DATA_PIN 8
@@ -25,6 +26,7 @@
 #define EXPIRE_TOGGLE_TASK 3
 #define EXPIRE_NOVESSEL_TASK 4
 #define MEASURE_WEIGHT_TASK 5
+#define MEASURE_TEMPERATURE_TASK 6
 
 // =================== CONFIGURATION ===================
 #define CUP_DETECTION_TIME 1000
@@ -37,7 +39,7 @@ const int VOLUMES[] = { 40, 100, 150, 200 };
 // ===================== VARIABLES =====================
 // Multitasking millis variables
 unsigned long currentMillis = 0;
-unsigned long prevMillis[6];
+unsigned long prevMillis[7];
 // Button states
 boolean toggleButtonPressed = false;
 boolean actionButtonPressed = false;
@@ -59,11 +61,16 @@ unsigned int toggleStage = 0;
 boolean noVesselActivated = false;
 // Weight measure
 int weight = 0;
+// Temperature measure
+float temperature = 0.0;
+// Screen variables
+boolean isHomeScreenActive = true;
 
 // ===================== INSTANCES =====================
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
 ShiftRegister74HC595 sr(2, SHIFTREG_SERIAL_DATA_PIN, SHIFTREG_CLOCK_PIN, SHIFTREG_LATCH_PIN);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
+DS18B20 ds(TEMPERATURE_SENSOR_PIN);
 
 // ======================= SETUP =======================
 void setup() {
@@ -71,8 +78,6 @@ void setup() {
   pinMode(ACTION_BUTTON_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   Serial.begin(9600);
-
-  pinMode(11, OUTPUT);
 
   lcd.init();
   lcd.backlight();
@@ -113,10 +118,18 @@ void loop() {
     performMeasureWeightTask();
   }
 
-  analogWrite(11, map(weight, 150, 800, 0, 255));
+  if (canPerformTask(MEASURE_TEMPERATURE_TASK, 1000)) {
+    performMeasureTemperatureTask();
+  }
 
 // Handle sounds
   handleSoundsTask();
+
+  if (Serial.available() > 0) {
+    int val = Serial.parseInt();
+    analogWrite(11, val);
+    Serial.println("SET: " + String(val, 10));
+  }
 }
 
 // ======================= TASKS =======================
@@ -174,14 +187,22 @@ void performExpireNoVesselTask() {
   playBeep(100);
 }
 
-// ----------------------- T05: Expire no vessel task
+// ----------------------- T05: Measure weight task
 void performMeasureWeightTask() {
   weight = analogRead(WEIGHT_SENSOR_PIN);
   int level = map(weight, 150, 800, 0, 10);
   setFillingLevel(level);
 }
 
-// ----------------------- T06: Handle sounds task
+// ----------------------- T06: Measure temperature task
+void performMeasureTemperatureTask() {
+  if (isHomeScreenActive) {
+    temperature = ds.getTempC();
+    displayHomeScreen();
+  }
+}
+
+// ----------------------- T07: Handle sounds task
 void handleSoundsTask() {
   if (playingBeep) {
     handleBeepSound();  
@@ -265,14 +286,16 @@ void handleNegativeSound() {
 // ===================== SCREENS ====================
 // ----------------------- SC00: Home
 void displayHomeScreen() {
+  isHomeScreenActive = true;
   lcd.clear();
-  lcd.print("TEMP:     36.6C");
+  lcd.print("TEMP:     " + String(temperature, 1) + "C");
   lcd.setCursor(0, 1);
   lcd.print("SELECTED: " + volumeText(VOLUMES[toggleStage]));
 }
 
 // ----------------------- SC01: Toggle
 void displayToggleScreen() {
+  isHomeScreenActive = false;
   lcd.clear();
   lcd.print("SELECTED: ");
   lcd.print(volumeText(VOLUMES[toggleStage]));
@@ -284,6 +307,7 @@ void displayToggleScreen() {
 
 // ----------------------- SC03: No vessel
 void displayNoVesselScreen() {
+  isHomeScreenActive = false;
   lcd.clear();
   lcd.print("NO VESSEL DETECT");
   lcd.setCursor(0, 1);
