@@ -6,12 +6,17 @@
 
 // =================== IN/OUT NUMBERS ==================
 // Buttons
-#define TOGGLE_BUTTON_PIN 4 // IN
-#define ACTION_BUTTON_PIN 3 // IN
+#define TOGGLE_BUTTON_PIN 3 // IN
+#define ACTION_BUTTON_PIN 4 // IN
 #define BUZZER_PIN 5 // OUT
 #define TRIGGER_PIN  7
 #define ECHO_PIN     6
 #define WEIGHT_SENSOR_PIN A2 // ANALOG IN
+<<<<<<< Updated upstream
+=======
+#define TEMPERATURE_SENSOR_PIN 2 // IN
+#define PUMP_PIN 11 // OUT
+>>>>>>> Stashed changes
 #define MAX_DISTANCE 450
 
 #define SHIFTREG_SERIAL_DATA_PIN 8
@@ -25,6 +30,11 @@
 #define EXPIRE_TOGGLE_TASK 3
 #define EXPIRE_NOVESSEL_TASK 4
 #define MEASURE_WEIGHT_TASK 5
+<<<<<<< Updated upstream
+=======
+#define MEASURE_TEMPERATURE_TASK 6
+#define PUMP_TASK 7
+>>>>>>> Stashed changes
 
 // =================== CONFIGURATION ===================
 #define CUP_DETECTION_TIME 1000
@@ -32,12 +42,17 @@
 #define TOGGLE_EXPIRATION_TIME 4000
 #define NOVESSEL_EXPIRATION_TIME 6000
 #define DEFAULT_BUZZER_TONE 255
-const int VOLUMES[] = { 40, 100, 150, 200 };
+#define TIME_PER_ML 35
+const int VOLUMES[] = { 100, 150, 200, 250, 1750 };
 
 // ===================== VARIABLES =====================
 // Multitasking millis variables
 unsigned long currentMillis = 0;
+<<<<<<< Updated upstream
 unsigned long prevMillis[6];
+=======
+unsigned long prevMillis[8];
+>>>>>>> Stashed changes
 // Button states
 boolean toggleButtonPressed = false;
 boolean actionButtonPressed = false;
@@ -59,6 +74,16 @@ unsigned int toggleStage = 0;
 boolean noVesselActivated = false;
 // Weight measure
 int weight = 0;
+<<<<<<< Updated upstream
+=======
+// Temperature measure
+float temperature = 0.0;
+// Screen variables
+boolean isHomeScreenActive = true;
+// Pump state
+boolean isPumpActive = false;
+unsigned long pumpStartTime = 0;
+>>>>>>> Stashed changes
 
 // ===================== INSTANCES =====================
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
@@ -70,13 +95,14 @@ void setup() {
   pinMode(TOGGLE_BUTTON_PIN, INPUT);
   pinMode(ACTION_BUTTON_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(PUMP_PIN, OUTPUT);
   Serial.begin(9600);
 
   pinMode(11, OUTPUT);
 
   lcd.init();
   lcd.backlight();
-  displayHomeScreen();
+  performMeasureTemperatureTask();
 }
 
 // ======================= LOOP ========================
@@ -113,10 +139,26 @@ void loop() {
     performMeasureWeightTask();
   }
 
+<<<<<<< Updated upstream
   analogWrite(11, map(weight, 150, 800, 0, 255));
+=======
+  if (canPerformTask(MEASURE_TEMPERATURE_TASK, 20000)) {
+    performMeasureTemperatureTask();
+  }
+>>>>>>> Stashed changes
+
+  if (isPumpActive && canPerformTask(PUMP_TASK, 1)) {
+    performPumpTask();
+  }
 
 // Handle sounds
   handleSoundsTask();
+<<<<<<< Updated upstream
+=======
+
+// Set pump state
+  digitalWrite(PUMP_PIN, isPumpActive);
+>>>>>>> Stashed changes
 }
 
 // ======================= TASKS =======================
@@ -148,13 +190,15 @@ void perfomToggleButtonTask() {
 // ----------------------- T02: Action button task
 void perfomActionButtonTask() {
   if (isCupPresent()) {
-    Serial.println("OK");
-    playBeep(500);
+    pumpStartTime = currentMillis;
+    isPumpActive = true;
+    playBeep(1000);
   } else {
     displayNoVesselScreen();
     noVesselActivated = true;
     updateTaskTime(EXPIRE_NOVESSEL_TASK);
     playNegative();
+    isPumpActive = false;
   }
 }
 
@@ -177,11 +221,39 @@ void performExpireNoVesselTask() {
 // ----------------------- T05: Expire no vessel task
 void performMeasureWeightTask() {
   weight = analogRead(WEIGHT_SENSOR_PIN);
-  int level = map(weight, 150, 800, 0, 10);
+  Serial.println(weight);
+  int level = map(weight, 820, 900, 0, 10);
   setFillingLevel(level);
 }
 
+<<<<<<< Updated upstream
 // ----------------------- T06: Handle sounds task
+=======
+// ----------------------- T06: Measure temperature task
+void performMeasureTemperatureTask() {
+  if (isHomeScreenActive) {
+    temperature = ds.getTempC();
+    displayHomeScreen();
+  }
+}
+
+// ----------------------- T07: Pump task
+void performPumpTask() {
+  if (!isCupPresent()) {
+    isPumpActive = false;
+    displayNoVesselScreen();
+    noVesselActivated = true;
+    updateTaskTime(EXPIRE_NOVESSEL_TASK);
+    playNegative();
+  }
+  if (currentMillis - pumpStartTime >= getPourTime()) {
+    isPumpActive = false;
+    playBeep(200);
+  }
+}
+
+// ----------------------- T08: Handle sounds task
+>>>>>>> Stashed changes
 void handleSoundsTask() {
   if (playingBeep) {
     handleBeepSound();  
@@ -335,6 +407,11 @@ void setFillingLevel(int level) {
   for (int i = 0; i < 10; i++) {
     sr.set(i, (level > i));
   }
+}
+
+unsigned long getPourTime() {
+  int selectedVolume = VOLUMES[toggleStage];
+  return (selectedVolume * TIME_PER_ML);
 }
 
 String volumeText(int volume) {
