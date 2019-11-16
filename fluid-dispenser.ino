@@ -481,3 +481,8 @@ void setFillingLevel(int level) {
 String volumeText(int volume) {
   return String(volume, 10) + "ml";
 }
+
+unsigned long getPourTime() {
+  int selectedVolume = VOLUMES[toggleStage];
+  return (selectedVolume * TIME_PER_ML);
+}
