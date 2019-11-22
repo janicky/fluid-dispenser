@@ -6,8 +6,8 @@
 
 // =================== IN/OUT NUMBERS ==================
 // Buttons
-#define TOGGLE_BUTTON_PIN 4 // IN
-#define ACTION_BUTTON_PIN 3 // IN
+#define TOGGLE_BUTTON_PIN 3 // IN
+#define ACTION_BUTTON_PIN 4 // IN
 #define BUZZER_PIN 5 // OUT
 #define TRIGGER_PIN  7
 #define ECHO_PIN     6
@@ -32,6 +32,7 @@
 #define PUMP_TASK 7
 #define UPDATE_DIODE_TASK 8
 #define EXPIRE_DONE_TASK 9
+#define DISPLAY_INVALID_WEIGHT_TASK 10
 
 // =================== CONFIGURATION ===================
 #define CUP_DETECTION_TIME 1000
@@ -47,7 +48,7 @@ const int VOLUMES[] = { 40, 100, 150, 200, 250, 330 };
 // ===================== VARIABLES =====================
 // Multitasking millis variables
 unsigned long currentMillis = 0;
-unsigned long prevMillis[10];
+unsigned long prevMillis[11];
 // Button states
 boolean toggleButtonPressed = false;
 boolean actionButtonPressed = false;
@@ -83,6 +84,8 @@ unsigned long pumpStartTime = 0;
 boolean isDiodeActive = false;
 boolean isDiodeBlinking = false;
 int diodeBlinkTime = DEFAULT_DIODE_BLINK_TIME;
+// Invalid values
+boolean isWeightInvalid = false;
 
 // ===================== INSTANCES =====================
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
@@ -97,10 +100,9 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(PUMP_PIN, OUTPUT);
   pinMode(DIODE_PIN, OUTPUT);
-  
-  Serial.begin(9600);
+  pinMode(WEIGHT_SENSOR_PIN, INPUT_PULLUP);
 
-  
+  updateTemperature();
 
   lcd.init();
   lcd.backlight();
@@ -141,7 +143,7 @@ void loop() {
     performExpireDoneTask();
   }
 
-  if (canPerformTask(MEASURE_WEIGHT_TASK, 100)) {
+  if (canPerformTask(MEASURE_WEIGHT_TASK, 1000)) {
     performMeasureWeightTask();
   }
 
@@ -155,6 +157,10 @@ void loop() {
 
   if (!isDiodeBlinking && canPerformTask(UPDATE_DIODE_TASK, 50)) {
     performUpdateDiodeTask();
+  }
+
+  if (isWeightInvalid && canPerformTask(DISPLAY_INVALID_WEIGHT_TASK, 500)) {
+    performDisplayInvalidWeightTask();
   }
 
 // Handle sounds
@@ -232,14 +238,17 @@ void performExpireNoVesselTask() {
 // ----------------------- T05: Measure weight task
 void performMeasureWeightTask() {
   weight = analogRead(WEIGHT_SENSOR_PIN);
-  int level = map(weight, 820, 900, 0, 10);
-  setFillingLevel(level);
+  isWeightInvalid = weight > 1000;
+  if (!isWeightInvalid) {
+    int level = map(weight, 840, 900, 0, 10);
+    setFillingLevel(level);
+  }
 }
 
 // ----------------------- T06: Measure temperature task
 void performMeasureTemperatureTask() {
   if (isHomeScreenActive) {
-    temperature = ds.getTempC();
+    updateTemperature();
     displayHomeScreen();
   }
 }
@@ -285,7 +294,14 @@ void performExpireDoneTask() {
   playBeep(100);
 }
 
-
+// ----------------------- T10: Display invalid weight task
+boolean invalidWeightTaskStage = false;
+void performDisplayInvalidWeightTask() {
+  for (int i = 0; i < 10; i++) {
+    sr.set(i, (i % 2 == (int) invalidWeightTaskStage));
+  }
+  invalidWeightTaskStage = !invalidWeightTaskStage;
+}
 
 // ----------------------- THS: Handle sounds task
 void handleSoundsTask() {
@@ -390,7 +406,11 @@ void handleNegativeSound() {
 void displayHomeScreen() {
   isHomeScreenActive = true;
   lcd.clear();
-  lcd.print("TEMP:     " + String(temperature, 1) + "C");
+  if (temperature > 0) {
+    lcd.print("TEMP:     " + String(temperature, 1) + "C");
+  } else {
+    lcd.print("TEMP ERROR!");
+  }
   lcd.setCursor(0, 1);
   lcd.print("SELECTED: " + volumeText(VOLUMES[toggleStage]));
 }
@@ -485,4 +505,8 @@ String volumeText(int volume) {
 unsigned long getPourTime() {
   int selectedVolume = VOLUMES[toggleStage];
   return (selectedVolume * TIME_PER_ML);
+}
+
+void updateTemperature() {
+  temperature = ds.getTempC();
 }
